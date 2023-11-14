@@ -204,18 +204,20 @@ impl<'a> Scanner<'a> {
             Ok(Token { ty, position })
         });
 
-        if token.is_none() && !self.at_eof {
-            self.at_eof = true;
-            Some(Ok(Token {
-                ty: TokenType::Eof,
-                position: Position {
-                    line: self.line,
-                    start: self.current,
-                    end: self.current,
-                },
-            }))
-        } else {
-            token
+        match token {
+            Some(t) => Some(t),
+            None if !self.at_eof => {
+                self.at_eof = true;
+                Some(Ok(Token {
+                    ty: TokenType::Eof,
+                    position: Position {
+                        line: self.line,
+                        start: self.current,
+                        end: self.current,
+                    },
+                }))
+            }
+            None => None,
         }
     }
 
