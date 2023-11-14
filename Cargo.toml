@@ -6,4 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+miette = { git = "https://github.com/zkat/miette", rev = "c7ba5b7e52e05991cecd3ca925c710bbe49850b9", features = [
+    "supports-color",
+    "fancy-no-backtrace",
+] }
 itertools = "0.11.0"
+thiserror = "1.0.50"

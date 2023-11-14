@@ -1,5 +1,7 @@
+mod errors;
 pub mod scanner;
 
+use miette::Report;
 use std::{
     fs,
     io::Result,
@@ -23,22 +25,16 @@ pub fn run_prompt() {
         let _ = stdout().flush();
         let mut line = String::new();
         let _ = stdin().read_line(&mut line);
-        run(line);
+        let _ = run(line);
     }
 }
 
 fn run(source: String) -> Result<()> {
     let scanner = Scanner::new(&source);
     for i in scanner {
-        dbg!(i);
+        if let Err(e) = i {
+            eprintln!("{:?}", Report::new(e));
+        }
     }
     Ok(())
-}
-
-fn error(line: u32, message: String) {
-    report(line, "".to_owned(), message);
-}
-
-fn report(line: u32, place: String, message: String) {
-    eprintln!("[line {line}] Error {place}: {message}");
 }

@@ -1,5 +1,8 @@
 use itertools::{Itertools, MultiPeek};
+use miette::NamedSource;
 use std::str::{Chars, FromStr};
+
+use crate::errors::SyntaxError;
 
 #[derive(Debug)]
 pub struct Token<'a> {
@@ -109,7 +112,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_token(&mut self) -> Option<Token<'a>> {
+    pub fn scan_token(&mut self) -> Option<Result<Token<'a>, SyntaxError>> {
         self.advance_while(|c| c.is_whitespace());
         let start = self.current;
         let ch = self.advance();
@@ -168,19 +171,28 @@ impl<'a> Scanner<'a> {
                         TokenType::Less
                     }
                 }
-                '"' => self.string(start),
+                '"' => match self.string(start) {
+                    Ok(ty) => ty,
+                    Err(err) => return Err(err),
+                },
                 ch if ch.is_numeric() => self.number(start),
                 ch if ch.is_alphabetic() => self.identifier(start),
-                _ => todo!(),
+                ch => {
+                    return Err(SyntaxError::UnexpectedCharacter {
+                        src: NamedSource::new("", self.source.to_string()),
+                        span: (start, 1).into(),
+                        char: ch,
+                    })
+                }
             };
 
             self.iter.reset_peek();
             let position = Position {
-                line: self.line,
                 start,
                 end: self.current,
+                line: self.line,
             };
-            Token { ty, position }
+            Ok(Token { ty, position })
         })
     }
 
@@ -210,35 +222,38 @@ impl<'a> Scanner<'a> {
         count
     }
 
-    fn string(&mut self, start: usize) -> TokenType<'a> {
-        let literal_size = self.advance_while(|c| c != &'"');
+    fn string(&mut self, start: usize) -> Result<TokenType<'a>, SyntaxError> {
+        let len = self.advance_while(|c| c != &'"');
         if self.advance().is_none() {
-            eprintln!("Unterminated string")
+            return Err(SyntaxError::UnterminatedString {
+                src: NamedSource::new("", self.source.to_string()),
+                quote: (start, 1).into(),
+            });
         }
         let start = start + 1;
-        let end = start + literal_size;
-        TokenType::String(&self.source[start..end])
+        let end = start + len;
+        Ok(TokenType::String(&self.source[start..end]))
     }
 
     fn number(&mut self, start: usize) -> TokenType<'a> {
-        let mut literal_size = self.advance_while(|ch| ch.is_numeric());
+        let mut len = self.advance_while(|ch| ch.is_numeric());
         if let Some(&'.') = self.iter.peek() {
             let is_frac = self.iter.peek().map_or(false, |ch| ch.is_numeric());
             if is_frac {
                 self.advance();
-                literal_size += 1;
-                literal_size += self.advance_while(|c| c.is_numeric());
+                len += 1;
+                len += self.advance_while(|c| c.is_numeric());
             }
         }
         self.iter.reset_peek();
-        let end = start + literal_size;
+        let end = start + len;
         let literal = &self.source[start..=end];
         TokenType::Number(literal.parse::<f64>().unwrap())
     }
 
     fn identifier(&mut self, start: usize) -> TokenType<'a> {
-        let literal_size = self.advance_while(|c| c.is_alphanumeric());
-        let end = start + literal_size;
+        let len = self.advance_while(|c| c.is_alphanumeric() || c == &'_');
+        let end = start + len;
         let literal = &self.source[start..=end];
         if let Ok(kw) = Keyword::from_str(literal) {
             TokenType::Keyword(kw)
@@ -249,9 +264,16 @@ impl<'a> Scanner<'a> {
 }
 
 impl<'a> Iterator for Scanner<'a> {
-    type Item = Token<'a>;
+    type Item = Result<Token<'a>, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.scan_token()
+        if let Some(item) = self.scan_token() {
+            match item {
+                Ok(t) => Some(Ok(t)),
+                Err(err) => Some(Err(err)),
+            }
+        } else {
+            None
+        }
     }
 }
