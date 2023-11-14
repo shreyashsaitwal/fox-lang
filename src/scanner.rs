@@ -17,7 +17,7 @@ pub struct Position {
     pub end: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TokenType<'a> {
     LeftParen,
     RightParen,
@@ -49,7 +49,7 @@ pub enum TokenType<'a> {
     Eof,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Keyword {
     Let,
     Fn,
@@ -113,7 +113,7 @@ impl<'a> Scanner<'a> {
     }
 
     pub fn scan_token(&mut self) -> Option<Result<Token<'a>, SyntaxError>> {
-        self.advance_while(|c| c.is_whitespace());
+        self.advance_while(|ch| ch.is_whitespace());
         let start = self.current;
         let ch = self.advance();
         ch.map(|ch| {
@@ -129,12 +129,16 @@ impl<'a> Scanner<'a> {
                 '+' => TokenType::Plus,
                 '*' => TokenType::Star,
                 '/' => {
-                    if let Some('/') = self.iter.peek() {
-                        self.advance_while(|c| c != &'\n');
+                    let next = self.iter.peek();
+                    if let Some('/') = next {
+                        self.advance_while(|ch| ch != &'\n');
                         if self.iter.peek().is_some() {
                             self.advance();
                         }
                         TokenType::Comment
+                    } else if let Some('*') = next {
+                        self.advance();
+                        self.doc_comment()
                     } else {
                         TokenType::Slash
                     }
@@ -223,7 +227,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn string(&mut self, start: usize) -> Result<TokenType<'a>, SyntaxError> {
-        let len = self.advance_while(|c| c != &'"');
+        let len = self.advance_while(|ch| ch != &'"');
         if self.advance().is_none() {
             return Err(SyntaxError::UnterminatedString {
                 src: NamedSource::new("", self.source.to_string()),
@@ -242,7 +246,7 @@ impl<'a> Scanner<'a> {
             if is_frac {
                 self.advance();
                 len += 1;
-                len += self.advance_while(|c| c.is_numeric());
+                len += self.advance_while(|ch| ch.is_numeric());
             }
         }
         self.iter.reset_peek();
@@ -252,7 +256,7 @@ impl<'a> Scanner<'a> {
     }
 
     fn identifier(&mut self, start: usize) -> TokenType<'a> {
-        let len = self.advance_while(|c| c.is_alphanumeric() || c == &'_');
+        let len = self.advance_while(|ch| ch.is_alphanumeric() || ch == &'_');
         let end = start + len;
         let literal = &self.source[start..=end];
         if let Ok(kw) = Keyword::from_str(literal) {
@@ -261,19 +265,40 @@ impl<'a> Scanner<'a> {
             TokenType::Identifier(literal)
         }
     }
+
+    fn doc_comment(&mut self) -> TokenType<'a> {
+        let mut count = 1;
+        while count > 0 && self.iter.peek().is_some() {
+            self.iter.reset_peek();
+            let curr = self.iter.peek();
+            if let Some('/') = curr {
+                if let Some('*') = self.iter.peek() {
+                    count += 1;
+                    self.advance();
+                }
+            } else if let Some('*') = curr {
+                if let Some('/') = self.iter.peek() {
+                    count -= 1;
+                    self.advance();
+                }
+            }
+            self.advance();
+        }
+        TokenType::Comment
+    }
 }
 
 impl<'a> Iterator for Scanner<'a> {
     type Item = Result<Token<'a>, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(item) = self.scan_token() {
+        while let Some(item) = self.scan_token() {
             match item {
-                Ok(t) => Some(Ok(t)),
-                Err(err) => Some(Err(err)),
+                Ok(t) if t.ty != TokenType::Comment => return Some(Ok(t)),
+                Err(e) => return Some(Err(e)),
+                _ => {},
             }
-        } else {
-            None
         }
+        None
     }
 }

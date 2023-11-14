@@ -34,6 +34,8 @@ fn run(source: String) -> Result<()> {
     for i in scanner {
         if let Err(e) = i {
             eprintln!("{:?}", Report::new(e));
+        } else if let Ok(t) = i {
+            println!("{t:?}");
         }
     }
     Ok(())
