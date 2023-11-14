@@ -1,5 +1,5 @@
 mod errors;
-pub mod scanner;
+mod lexer;
 
 use miette::Report;
 use std::{
@@ -10,7 +10,7 @@ use std::{
     process::exit,
 };
 
-use scanner::Scanner;
+use lexer::Scanner;
 
 pub fn run_file(path: PathBuf) {
     let source = fs::read_to_string(path).unwrap();

@@ -100,6 +100,7 @@ pub struct Scanner<'a> {
     iter: MultiPeek<Chars<'a>>,
     current: usize,
     line: usize,
+    at_eof: bool,
 }
 
 impl<'a> Scanner<'a> {
@@ -109,6 +110,7 @@ impl<'a> Scanner<'a> {
             iter: source.chars().multipeek(),
             current: 0,
             line: 1,
+            at_eof: false,
         }
     }
 
@@ -116,7 +118,7 @@ impl<'a> Scanner<'a> {
         self.advance_while(|ch| ch.is_whitespace());
         let start = self.current;
         let ch = self.advance();
-        ch.map(|ch| {
+        let token = ch.map(|ch| {
             let ty = match ch {
                 '(' => TokenType::LeftParen,
                 ')' => TokenType::RightParen,
@@ -200,7 +202,21 @@ impl<'a> Scanner<'a> {
                 line: self.line,
             };
             Ok(Token { ty, position })
-        })
+        });
+
+        if token.is_none() && !self.at_eof {
+            self.at_eof = true;
+            Some(Ok(Token {
+                ty: TokenType::Eof,
+                position: Position {
+                    line: self.line,
+                    start: self.current,
+                    end: self.current,
+                },
+            }))
+        } else {
+            token
+        }
     }
 
     fn advance(&mut self) -> Option<char> {
