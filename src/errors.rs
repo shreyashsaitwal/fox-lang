@@ -5,7 +5,7 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum SyntaxError {
-    #[error("Unexpected character: {char}")]
+    #[error("Syntax error: Unexpected character `{char}` found")]
     #[diagnostic()]
     UnexpectedCharacter {
         #[source_code]
@@ -15,12 +15,21 @@ pub enum SyntaxError {
         char: char,
     },
 
-    #[error("Unterminated string: closing \" not found")]
-    #[diagnostic(help("consider adding a closing \" after the string literal"))]
+    #[error("Syntax error: Missing trailing `\"` to terminate the string")]
+    #[diagnostic(help("consider adding a `\"` after the string literal"))]
     UnterminatedString {
         #[source_code]
         src: NamedSource,
-        #[label(primary, "opening \" found here")]
-        quote: SourceSpan,
+        #[label(primary, "opening `\"` found here")]
+        leading_quote: SourceSpan,
     },
+
+    #[error("Unterminated block comment: Missing trailing `*/` to terminate the block comment")]
+    #[diagnostic(help("consider adding `*/` at the end of the block comment"))]
+    UnterminatedBlockComment {
+        #[source_code]
+        src: NamedSource,
+        #[label(primary, "start of the block comment")]
+        comment_start: SourceSpan
+    }
 }

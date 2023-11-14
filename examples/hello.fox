@@ -1,0 +1,13 @@
+// Variable are declared using the `let` keyword
+let name = "Fox Lang";
+
+/**
+ * This is how you define functions.
+ * Oh, yes, this is a block comment btw...
+ */
+fn say_hello() {
+    print "Hello, world!";
+}
+
+// And this is how you call them
+say_hello();

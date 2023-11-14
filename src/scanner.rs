@@ -138,7 +138,10 @@ impl<'a> Scanner<'a> {
                         TokenType::Comment
                     } else if let Some('*') = next {
                         self.advance();
-                        self.doc_comment()
+                        match self.block_comment(start) {
+                            Ok(ty) => ty,
+                            Err(err) => return Err(err),
+                        }
                     } else {
                         TokenType::Slash
                     }
@@ -231,7 +234,7 @@ impl<'a> Scanner<'a> {
         if self.advance().is_none() {
             return Err(SyntaxError::UnterminatedString {
                 src: NamedSource::new("", self.source.to_string()),
-                quote: (start, 1).into(),
+                leading_quote: (start, 1).into(),
             });
         }
         let start = start + 1;
@@ -266,7 +269,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn doc_comment(&mut self) -> TokenType<'a> {
+    fn block_comment(&mut self, start: usize) -> Result<TokenType<'a>, SyntaxError> {
         let mut count = 1;
         while count > 0 && self.iter.peek().is_some() {
             self.iter.reset_peek();
@@ -284,7 +287,14 @@ impl<'a> Scanner<'a> {
             }
             self.advance();
         }
-        TokenType::Comment
+        if count > 0 {
+            Err(SyntaxError::UnterminatedBlockComment {
+                src: NamedSource::new("", self.source.to_string()),
+                comment_start: (start, 2).into(),
+            })
+        } else {
+            Ok(TokenType::Comment)
+        }
     }
 }
 
@@ -296,7 +306,7 @@ impl<'a> Iterator for Scanner<'a> {
             match item {
                 Ok(t) if t.ty != TokenType::Comment => return Some(Ok(t)),
                 Err(e) => return Some(Err(e)),
-                _ => {},
+                _ => {}
             }
         }
         None
