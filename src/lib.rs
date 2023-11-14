@@ -10,7 +10,7 @@ use std::{
     process::exit,
 };
 
-use lexer::Scanner;
+use lexer::Lexer;
 
 pub fn run_file(path: PathBuf) {
     let source = fs::read_to_string(path).unwrap();
@@ -30,8 +30,8 @@ pub fn run_prompt() {
 }
 
 fn run(source: String) -> Result<()> {
-    let scanner = Scanner::new(&source);
-    for i in scanner {
+    let lexer = Lexer::new(&source);
+    for i in lexer {
         if let Err(e) = i {
             eprintln!("{:?}", Report::new(e));
         } else if let Ok(t) = i {

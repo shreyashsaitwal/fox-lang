@@ -95,7 +95,7 @@ impl FromStr for Keyword {
     }
 }
 
-pub struct Scanner<'a> {
+pub struct Lexer<'a> {
     source: &'a str,
     iter: MultiPeek<Chars<'a>>,
     current: usize,
@@ -103,9 +103,9 @@ pub struct Scanner<'a> {
     at_eof: bool,
 }
 
-impl<'a> Scanner<'a> {
+impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
-        Scanner {
+        Lexer {
             source,
             iter: source.chars().multipeek(),
             current: 0,
@@ -316,7 +316,7 @@ impl<'a> Scanner<'a> {
     }
 }
 
-impl<'a> Iterator for Scanner<'a> {
+impl<'a> Iterator for Lexer<'a> {
     type Item = Result<Token<'a>, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
