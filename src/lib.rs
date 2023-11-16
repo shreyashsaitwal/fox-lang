@@ -1,5 +1,8 @@
+#![feature(if_let_guard)]
+
 mod errors;
 mod lexer;
+mod expr;
 
 use miette::Report;
 use std::{

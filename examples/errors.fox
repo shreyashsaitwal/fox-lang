@@ -1,0 +1,5 @@
+// Unexpected character error:
+let foo ? "bar";
+
+// Unterminated string:
+let foo = "bar;

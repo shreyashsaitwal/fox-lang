@@ -1,13 +1,48 @@
 use itertools::{Itertools, MultiPeek};
 use miette::NamedSource;
-use std::str::{Chars, FromStr};
+use std::{
+    fmt,
+    str::{Chars, FromStr},
+};
 
 use crate::errors::SyntaxError;
 
 #[derive(Debug)]
-pub struct Token<'a> {
-    pub ty: TokenType<'a>,
+pub struct Token {
+    pub ty: TokenType,
     pub position: Position,
+}
+
+impl Token {
+    pub fn lexeme(&self) -> String {
+        match &self.ty {
+            TokenType::LeftParen => "(".to_string(),
+            TokenType::RightParen => ")".to_string(),
+            TokenType::LeftBrace => "{".to_string(),
+            TokenType::RightBrace => "}".to_string(),
+            TokenType::Comma => ",".to_string(),
+            TokenType::Semicolon => ";".to_string(),
+            TokenType::Dot => ".".to_string(),
+            TokenType::Minus => "-".to_string(),
+            TokenType::Plus => "+".to_string(),
+            TokenType::Slash => "/".to_string(),
+            TokenType::Star => "*".to_string(),
+            TokenType::Bang => "!".to_string(),
+            TokenType::BangEq => "!=".to_string(),
+            TokenType::Equal => "=".to_string(),
+            TokenType::EqualEq => "==".to_string(),
+            TokenType::Greater => ">".to_string(),
+            TokenType::GreaterEq => ">=".to_string(),
+            TokenType::Less => "<".to_string(),
+            TokenType::LessEq => "<=".to_string(),
+            TokenType::Identifier(ident) => ident.to_string(),
+            TokenType::String(lit) => lit.to_string(),
+            TokenType::Number(num) => num.to_string(),
+            TokenType::Keyword(kw) => kw.lexeme().to_owned(),
+            TokenType::Comment => "<comment>".to_string(),
+            TokenType::Eof => "<eof>".to_string(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -18,7 +53,7 @@ pub struct Position {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum TokenType<'a> {
+pub enum TokenType {
     LeftParen,
     RightParen,
     LeftBrace,
@@ -40,8 +75,8 @@ pub enum TokenType<'a> {
     Less,
     LessEq,
 
-    Identifier(&'a str),
-    String(&'a str),
+    Identifier(String),
+    String(String),
     Number(f64),
 
     Keyword(Keyword),
@@ -69,8 +104,31 @@ pub enum Keyword {
     Print,
 }
 
+impl Keyword {
+    fn lexeme(&self) -> &str {
+        match self {
+            Keyword::Let => "let",
+            Keyword::Fn => "fn",
+            Keyword::Return => "return",
+            Keyword::Class => "class",
+            Keyword::Super => "super",
+            Keyword::This => "this",
+            Keyword::And => "and",
+            Keyword::Or => "or",
+            Keyword::If => "if",
+            Keyword::Else => "else",
+            Keyword::True => "true",
+            Keyword::False => "false",
+            Keyword::For => "for",
+            Keyword::While => "while",
+            Keyword::Nil => "nil",
+            Keyword::Print => "print",
+        }
+    }
+}
+
 impl FromStr for Keyword {
-    type Err = ();
+    type Err = fmt::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -90,7 +148,7 @@ impl FromStr for Keyword {
             "while" => Ok(Keyword::While),
             "nil" => Ok(Keyword::Nil),
             "print" => Ok(Keyword::Print),
-            _ => Err(()),
+            _ => Err(fmt::Error),
         }
     }
 }
@@ -114,7 +172,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn scan_token(&mut self) -> Option<Result<Token<'a>, SyntaxError>> {
+    pub fn scan_token(&mut self) -> Option<Result<Token, SyntaxError>> {
         self.advance_while(|ch| ch.is_whitespace());
         let start = self.current;
         let ch = self.advance();
@@ -247,7 +305,7 @@ impl<'a> Lexer<'a> {
         count
     }
 
-    fn string(&mut self, start: usize) -> Result<TokenType<'a>, SyntaxError> {
+    fn string(&mut self, start: usize) -> Result<TokenType, SyntaxError> {
         let len = self.advance_while(|ch| ch != &'"');
         if self.advance().is_none() {
             return Err(SyntaxError::UnterminatedString {
@@ -257,10 +315,10 @@ impl<'a> Lexer<'a> {
         }
         let start = start + 1;
         let end = start + len;
-        Ok(TokenType::String(&self.source[start..end]))
+        Ok(TokenType::String(self.source[start..end].to_string()))
     }
 
-    fn number(&mut self, start: usize) -> TokenType<'a> {
+    fn number(&mut self, start: usize) -> TokenType {
         let mut len = self.advance_while(|ch| ch.is_numeric());
         if let Some(&'.') = self.iter.peek() {
             let is_frac = self.iter.peek().map_or(false, |ch| ch.is_numeric());
@@ -276,18 +334,18 @@ impl<'a> Lexer<'a> {
         TokenType::Number(literal.parse::<f64>().unwrap())
     }
 
-    fn identifier(&mut self, start: usize) -> TokenType<'a> {
+    fn identifier(&mut self, start: usize) -> TokenType {
         let len = self.advance_while(|ch| ch.is_alphanumeric() || ch == &'_');
         let end = start + len;
         let literal = &self.source[start..=end];
         if let Ok(kw) = Keyword::from_str(literal) {
             TokenType::Keyword(kw)
         } else {
-            TokenType::Identifier(literal)
+            TokenType::Identifier(literal.to_string())
         }
     }
 
-    fn block_comment(&mut self, start: usize) -> Result<TokenType<'a>, SyntaxError> {
+    fn block_comment(&mut self, start: usize) -> Result<TokenType, SyntaxError> {
         let mut count = 1;
         while count > 0 && self.iter.peek().is_some() {
             self.iter.reset_peek();
@@ -317,14 +375,14 @@ impl<'a> Lexer<'a> {
 }
 
 impl<'a> Iterator for Lexer<'a> {
-    type Item = Result<Token<'a>, SyntaxError>;
+    type Item = Result<Token, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         while let Some(item) = self.scan_token() {
             match item {
-                Ok(t) if t.ty != TokenType::Comment => return Some(Ok(t)),
+                Ok(t) if let TokenType::Comment = t.ty => {}
+                Ok(t) => return Some(Ok(t)),
                 Err(e) => return Some(Err(e)),
-                _ => {}
             }
         }
         None
